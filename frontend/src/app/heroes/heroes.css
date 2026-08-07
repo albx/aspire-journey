@@ -1,0 +1,6 @@
+.add-hero {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin-bottom: 16px;
+}

@@ -1,0 +1,25 @@
+<h2>Heroes</h2>
+
+<div class="add-hero">
+  <mat-form-field appearance="outline">
+    <mat-label>Hero name</mat-label>
+    <input matInput #heroName placeholder="e.g. Iron Man" />
+  </mat-form-field>
+  <button matButton="filled" (click)="add(heroName.value); heroName.value = ''">Add</button>
+</div>
+
+<mat-nav-list>
+  @for (hero of heroes(); track hero.id) {
+    <a mat-list-item [routerLink]="['/detail', hero.id]">
+      <span matListItemTitle>{{ hero.id }} — {{ hero.name }}</span>
+      <button
+        matIconButton
+        matListItemMeta
+        aria-label="Delete hero"
+        (click)="$event.stopPropagation(); $event.preventDefault(); delete(hero)"
+      >
+        <mat-icon>delete</mat-icon>
+      </button>
+    </a>
+  }
+</mat-nav-list>

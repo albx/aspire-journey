@@ -1,0 +1,11 @@
+<h2>Top Heroes</h2>
+
+<div class="hero-grid">
+  @for (hero of topHeroes(); track hero.id) {
+    <a [routerLink]="['/detail', hero.id]" class="hero-link">
+      <mat-card appearance="outlined">
+        <mat-card-content>{{ hero.name }}</mat-card-content>
+      </mat-card>
+    </a>
+  }
+</div>

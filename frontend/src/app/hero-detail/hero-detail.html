@@ -1,0 +1,15 @@
+@if (hero(); as h) {
+  <h2>{{ h.name | uppercase }} Details</h2>
+
+  <div><span>id: </span>{{ h.id }}</div>
+
+  <mat-form-field appearance="outline">
+    <mat-label>Hero name</mat-label>
+    <input matInput #heroName [value]="h.name" />
+  </mat-form-field>
+
+  <div class="actions">
+    <button matButton (click)="goBack()">Back</button>
+    <button matButton="filled" (click)="save(heroName.value)">Save</button>
+  </div>
+}
