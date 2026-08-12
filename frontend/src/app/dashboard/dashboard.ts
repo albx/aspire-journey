@@ -3,11 +3,12 @@ import { toSignal } from '@angular/core/rxjs-interop';
 import { RouterLink } from '@angular/router';
 import { MatCardModule } from '@angular/material/card';
 
+import { HeroSearch } from '../hero-search/hero-search';
 import { HeroService } from '../services/hero';
 
 @Component({
   selector: 'app-dashboard',
-  imports: [RouterLink, MatCardModule],
+  imports: [RouterLink, MatCardModule, HeroSearch],
   templateUrl: './dashboard.html',
   styleUrl: './dashboard.css',
 })

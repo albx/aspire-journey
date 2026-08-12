@@ -584,3 +584,225 @@ frontend/src/app/app.routes.ts                     -> /detail/:id route added
 
 **Status:** ✅ Done — awaiting review before proceeding to the next step
 (building the `HeroSearch` live-search component).
+
+## Step 8 — HeroSearch component (live search-as-you-type)
+
+**Goal:** build the `HeroSearch` component from the original tutorial —
+a small search box (embedded on the Dashboard) that queries the backend
+as the user types, without flooding it with a request per keystroke.
+
+**What was done:**
+1. Generated the component: `frontend/src/app/hero-search/`.
+2. `hero-search.ts`:
+   - Uses an RxJS `Subject<string>` (`searchTerms`) as the "pipe" that
+     every keystroke is pushed into via `search(term)`.
+   - Pipes that subject through `debounceTime(300)` →
+     `distinctUntilChanged()` → `switchMap(term =>
+     heroService.searchHeroes(term))`, then converts the resulting
+     Observable into a signal with `toSignal(..., { initialValue: [] })`
+     so the template can read `heroes()` directly.
+   - Reuses the existing `HeroService.searchHeroes(term)` method (added
+     back in Step 4) — no backend or service changes were needed.
+3. `hero-search.html`: a Material outlined text field (`mat-form-field`
+   + `matInput`) with an `(input)` handler calling `search(searchBox.value)`
+   on every keystroke, and a `mat-nav-list` below it showing matching
+   hero names as links to `/detail/:id`.
+4. `hero-search.css`: simple column layout, input capped at 300px wide.
+5. Embedded `<app-hero-search />` at the bottom of the Dashboard page
+   (`dashboard.html`), matching the original tutorial's layout where the
+   search box lives on the dashboard rather than as its own route.
+6. Updated `hero-search.spec.ts`: added `provideHttpClient()` +
+   `provideHttpClientTesting()` + `provideRouter([])`, matching the
+   pattern already used for `Heroes`/`Dashboard` specs, since the
+   component now depends on `HeroService` and `RouterLink`.
+
+**Plain-language explanation:**
+- **`Subject`** (from RxJS) is a manually-triggerable stream: instead of
+  reacting to an existing event source, we call `.next(value)` ourselves
+  each time the user types, and anything "listening" downstream
+  (`debounceTime`, etc.) reacts to each pushed value.
+- **`debounceTime(300)`** waits for a 300ms pause in typing before
+  letting a value through — so rapid typing doesn't trigger a request
+  per character, only once the user briefly stops.
+- **`distinctUntilChanged()`** skips firing again if the new search term
+  is identical to the last one that was already searched (e.g. typing
+  then quickly deleting back to the same text).
+- **`switchMap`** is key for search-as-you-type: if a new search term
+  comes in while a previous HTTP request for an older term is still in
+  flight, `switchMap` cancels/ignores that stale request and switches to
+  the new one — so slow, out-of-order responses can't overwrite newer
+  results.
+- **`toSignal(...)`** is the same signal-conversion helper used in
+  `Dashboard` (Step 5) — it turns the RxJS pipeline's output into a
+  signal the template can read reactively with `heroes()`.
+
+**Verification:**
+- `npx ng build` → succeeds, bundle ~490 KB raw / ~110 KB transferred.
+- `npx ng test --watch=false` → **8/8 tests passing** across 7 spec
+  files (added one new test for `HeroSearch`).
+
+**Result — new/updated files:**
+```
+frontend/src/app/hero-search/hero-search.ts        -> component logic (debounced search via Subject)
+frontend/src/app/hero-search/hero-search.html      -> search input + results list template
+frontend/src/app/hero-search/hero-search.css       -> input width/layout styles
+frontend/src/app/hero-search/hero-search.spec.ts   -> test (Http + Router testing providers)
+frontend/src/app/dashboard/dashboard.ts            -> imports HeroSearch
+frontend/src/app/dashboard/dashboard.html          -> <app-hero-search /> added below hero grid
+```
+
+**Status:** ✅ Done — awaiting review before proceeding to the next step
+(building the `Messages` component to display the `MessageService` log,
+and adding a shared Material toolbar/nav around the whole app).
+
+## Step 9 — Messages component and shared app toolbar/nav
+
+**Goal:** build the `Messages` component that displays the running log
+kept by `MessageService` (added in Step 4 but never rendered until now),
+and wrap the whole app in a persistent Material toolbar with navigation
+links, matching the original tutorial's overall page layout.
+
+**What was done:**
+1. Generated the component: `frontend/src/app/messages/`.
+2. `messages.ts`: injects `MessageService` directly (exposed as
+   `protected readonly messageService`, read straight from the template)
+   — no local state needed since the service already holds everything
+   as a signal.
+3. `messages.html`: only renders the whole block
+   (`@if (messageService.messages().length > 0)`) once there's at least
+   one message, avoiding an empty "Messages" heading on first load.
+   Shows each logged string, plus a small icon button (Material
+   `mat-icon-button`, trash icon) that calls `messageService.clear()`.
+4. `messages.css`: minor spacing for the block and its heading/button
+   row.
+5. Updated the root `App` component (`app.ts`/`app.html`/`app.css`):
+   - Added a persistent Material `mat-toolbar` (color `primary`) at the
+     top of every page, showing the app title and two nav links
+     (`routerLink="/dashboard"`, `routerLink="/heroes"`) using
+     `mat-button`.
+   - Wrapped `<router-outlet>` and the new `<app-messages />` in a
+     `<main>` element with some padding, so the message log appears
+     below whichever page is currently showing, on every route — same
+     as the original tutorial, where Messages is always visible at the
+     bottom of the app regardless of which view is active.
+6. Updated `app.spec.ts`: added `provideRouter([])` to the test
+   providers — required now that the root template uses `RouterLink`
+   (previously only `RouterOutlet`, which doesn't need a configured
+   router to render in tests).
+7. No changes needed to `messages.spec.ts` — `Messages` only depends on
+   `MessageService`, which has no HTTP or Router dependencies, so the
+   CLI-generated test worked unmodified.
+
+**Plain-language explanation:**
+- **`MessageService`** (built in Step 4) was already collecting log
+  strings every time `HeroService` made an API call, but nothing was
+  displaying them — this step finally adds a visible place (bottom of
+  every page) where those log entries show up, plus a "clear" button.
+- **`mat-toolbar`** is Material's standard app header bar component —
+  here it's placed once in the root `App` component (not per-page), so
+  it persists across navigation, giving the app a consistent header with
+  a title and links to the two main pages.
+- Because the toolbar's nav links and the Messages log both live in the
+  *root* component template (outside `<router-outlet>`), they don't get
+  replaced when the Router swaps between Dashboard/Heroes/HeroDetail —
+  only the content inside the outlet changes, mirroring how the original
+  Angular tutorial structures its `AppComponent` shell.
+
+**Verification:**
+- `npx ng build` → succeeds; bundle ~502.6 KB raw / ~112 KB transferred.
+  This slightly exceeds the default 500 KB *warning* budget (not the 1 MB
+  error budget) by ~2.6 KB — expected after adding the toolbar and
+  Messages component; left as a non-blocking warning rather than
+  adjusting the budget, since the app is still well under the error
+  threshold and more Material components/styling are still to come.
+- `npx ng test --watch=false` → **9/9 tests passing** across 8 spec
+  files (added one new test for `Messages`; fixed `App`'s test to
+  provide a router).
+- Ran `npx ng serve` and requested `http://localhost:4200/dashboard` →
+  **200 OK**, confirming the toolbar/shell renders correctly with the
+  new route.
+
+**Result — new/updated files:**
+```
+frontend/src/app/messages/messages.ts        -> component logic (reads/clears MessageService log)
+frontend/src/app/messages/messages.html      -> conditional message list + clear button
+frontend/src/app/messages/messages.css       -> spacing styles
+frontend/src/app/messages/messages.spec.ts   -> default CLI-generated test (unmodified)
+frontend/src/app/app.ts                      -> imports Messages, RouterLink, MatToolbarModule, MatButtonModule
+frontend/src/app/app.html                    -> mat-toolbar + nav links + <main> wrapping outlet/messages
+frontend/src/app/app.css                     -> .spacer / <main> layout styles
+frontend/src/app/app.spec.ts                 -> added provideRouter([]) to test providers
+```
+
+**Status:** ✅ Done — awaiting review before proceeding to the next step
+(a final styling/polish pass across all pages, and updating the
+top-level `README.md` with run instructions for both frontend and
+backend).
+
+## Step 10 — Styling polish pass and top-level README
+
+**Goal:** tidy up overall page layout now that all core views exist, and
+document how to actually run both the frontend and backend for anyone
+new to the repo.
+
+**What was done:**
+1. `app.html`/`app.css`: gave the `<main>` element (wrapping
+   `router-outlet` + `app-messages`) a `content` class that centers the
+   page content with a `960px` max width and consistent
+   `1.5rem/1rem` padding, instead of the previous unconstrained
+   full-width `1rem` padding — keeps text/cards from stretching edge to
+   edge on wide screens, matching typical Material app layouts.
+2. `hero-detail.css`: capped the hero name `mat-form-field` to `300px`
+   wide and made it `display: block` (previously unstyled/inline-width),
+   consistent with the same 300px cap already used for the search input
+   in `hero-search.css` and the add-hero input in `heroes.html`.
+3. Verified nothing else needed adjustment — `dashboard.css` (hero grid)
+   and `heroes.css` (add-hero row) were already reasonably laid out from
+   earlier steps.
+4. Updated the top-level `README.md` (previously just the repo title)
+   with:
+   - Repo layout summary (`/frontend`, `/backend`).
+   - Backend run steps: set the `HeroesDb` connection string, run
+     `dotnet ef database update`, then `dotnet run` (default
+     `http://localhost:5047`, docs at `/scalar`).
+   - Frontend run steps: use Node 24.19.0+ (`nvm use 24.19.0`), `npm
+     install`, confirm `environment.development.ts`'s `apiBaseUrl`, then
+     `npx ng serve` (`http://localhost:4200`).
+   - A short "Tests" section (`npx ng test --watch=false` for frontend;
+     `dotnet test` noted as the placeholder command for the backend once
+     test projects exist — none exist yet per `docs/backend.md`).
+
+**Plain-language explanation:**
+- This step doesn't add new features — it's a cleanup/documentation pass
+  now that the Dashboard, Heroes list, Hero detail, live search, and
+  Messages log all exist and work together, matching the original
+  tutorial's full feature set.
+- The layout tweak (max-width + centered content) is a common Material
+  app pattern: without it, cards/lists/inputs would stretch awkwardly
+  wide on large monitors since nothing was constraining the page's
+  overall content width.
+- The README update means someone cloning the repo for the first time
+  (or the presenter setting up for the talk) has a single place to find
+  exact commands to get both halves of the app running locally.
+
+**Verification:**
+- `npx ng build` → succeeds; bundle ~502.7 KB raw / ~112 KB transferred
+  (same as Step 9, styling changes don't materially affect bundle size;
+  still ~2.7 KB over the 500 KB warning budget, non-blocking).
+- `npx ng test --watch=false` → **9/9 tests passing** across 8 spec
+  files (no test changes needed for this step).
+- Ran `npx ng serve` and requested `http://localhost:4200/dashboard` and
+  `/heroes` → both **200 OK**.
+
+**Result — new/updated files:**
+```
+frontend/src/app/app.html               -> <main class="content">
+frontend/src/app/app.css                -> main.content max-width/centering
+frontend/src/app/hero-detail/hero-detail.css -> mat-form-field width cap
+README.md                               -> repo layout + run/test instructions
+```
+
+**Status:** ✅ Done — awaiting review. This completes the full frontend
+feature set from `docs/tour-of-heroes-plan.md` (Dashboard, Heroes CRUD,
+Hero detail, live search, Messages log, Material styling, and
+documentation).

@@ -1,0 +1,14 @@
+<div class="search-component">
+  <mat-form-field appearance="outline">
+    <mat-label>Hero Search</mat-label>
+    <input matInput #searchBox placeholder="e.g. Bombasto" (input)="search(searchBox.value)" />
+  </mat-form-field>
+
+  <mat-nav-list>
+    @for (hero of heroes(); track hero.id) {
+      <a mat-list-item [routerLink]="['/detail', hero.id]">
+        {{ hero.name }}
+      </a>
+    }
+  </mat-nav-list>
+</div>

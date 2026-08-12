@@ -1,0 +1,13 @@
+@if (messageService.messages().length > 0) {
+  <div class="messages">
+    <h2>
+      Messages
+      <button matIconButton aria-label="Clear messages" (click)="messageService.clear()">
+        <mat-icon>clear</mat-icon>
+      </button>
+    </h2>
+    @for (message of messageService.messages(); track $index) {
+      <div>{{ message }}</div>
+    }
+  </div>
+}

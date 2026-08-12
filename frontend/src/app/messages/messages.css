@@ -1,0 +1,10 @@
+.messages {
+  margin-top: 2rem;
+  padding: 0 1rem;
+}
+
+.messages h2 {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}

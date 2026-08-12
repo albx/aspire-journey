@@ -3,3 +3,8 @@
   gap: 12px;
   margin-top: 8px;
 }
+
+mat-form-field {
+  display: block;
+  max-width: 300px;
+}

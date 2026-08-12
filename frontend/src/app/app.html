@@ -1,1 +1,11 @@
-<router-outlet></router-outlet>
+<mat-toolbar color="primary">
+  <span>{{ title() }}</span>
+  <span class="spacer"></span>
+  <a mat-button routerLink="/dashboard">Dashboard</a>
+  <a mat-button routerLink="/heroes">Heroes</a>
+</mat-toolbar>
+
+<main class="content">
+  <router-outlet></router-outlet>
+  <app-messages />
+</main>
