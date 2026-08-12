@@ -375,3 +375,121 @@ before moving on to the frontend.
 **Status:** ✅ Done — backend implementation complete, pending the user's
 own SQL Server connection string and `dotnet ef database update`. Ready to
 move on to the frontend (Angular) implementation.
+
+## Step 7 — Dockerized SQL Server for local development
+
+**Goal:** remove the manual "supply your own SQL Server connection
+string" step by providing a ready-to-run local SQL Server instance via
+Docker, with scripts to start/stop it.
+
+**What was done:**
+1. Added `scripts/start-sql-server.ps1` (repo root, shared by both
+   frontend/backend tooling): runs
+   `mcr.microsoft.com/mssql/server:2022-latest` in a container named
+   `tour-of-heroes-sql`, exposing SQL Server on `localhost,1433` with a
+   fixed local-dev-only SA password (`YourStrong!Passw0rd`). Re-running
+   the script when the container already exists just starts it again
+   instead of erroring or duplicating it.
+2. Added `scripts/stop-sql-server.ps1`: stops and removes the
+   `tour-of-heroes-sql` container. No volume is mounted, so data is not
+   persisted across removal — re-running `start-sql-server.ps1` +
+   `dotnet ef database update` recreates a fresh empty (then seeded)
+   database.
+3. Updated `appsettings.json`'s `ConnectionStrings:HeroesDb` from the
+   `<ADD-YOUR-SQL-SERVER-CONNECTION-STRING-HERE>` placeholder to a
+   concrete connection string matching the container:
+   `Server=localhost,1433;Database=HeroesDb;User Id=sa;Password=YourStrong!Passw0rd;TrustServerCertificate=True;`
+   — this removes the previous "outstanding action for the user" step;
+   the app now works out of the box once the container is running.
+4. Verified end-to-end: ran `start-sql-server.ps1` (pulled the image
+   successfully), waited for SQL Server to become ready, then ran
+   `dotnet ef database update` from `backend/TourOfHeroes.Api` —
+   migration applied successfully, `Heroes` table created and seeded
+   with the 10 sample heroes. Ran `stop-sql-server.ps1` afterwards and
+   confirmed the container was stopped and removed
+   (`docker ps -a` no longer lists it).
+5. Updated the top-level `README.md`'s backend run instructions to
+   include the new `start-sql-server.ps1` / `stop-sql-server.ps1` steps,
+   replacing the old "add your own connection string" instruction.
+
+**Plain-language explanation:**
+- **Docker** lets us run a full SQL Server instance in an isolated
+  container without installing SQL Server directly on the machine —
+  useful for a demo/talk repo where anyone cloning it should be able to
+  get a working database in one command.
+- The fixed SA password is intentionally simple and clearly marked for
+  local development only — it's never meant to be used for anything
+  other than a throwaway local container.
+- Since the container has no persistent volume, stopping+removing it
+  (via `stop-sql-server.ps1`) wipes all data — appropriate for a demo
+  app where the seed data is trivial to recreate via the EF Core
+  migration.
+
+**Result — new/updated files:**
+```
+scripts/start-sql-server.ps1                    -> new: starts/creates the SQL Server container
+scripts/stop-sql-server.ps1                     -> new: stops and removes the container
+backend/TourOfHeroes.Api/appsettings.json        -> concrete connection string (was placeholder)
+README.md                                        -> updated backend run instructions
+```
+
+**Status:** ✅ Done — awaiting review.
+
+## Step 8 — Persist SQL Server data with a named Docker volume
+
+**Goal:** avoid losing the database every time the container is
+recreated (e.g. after a machine restart or `docker rm`), by persisting
+SQL Server's data directory in a named Docker volume.
+
+**What was done:**
+1. Updated `scripts/start-sql-server.ps1`:
+   - Creates a named volume `tour-of-heroes-sql-data` if it doesn't
+     already exist (`docker volume create`).
+   - Mounts it into the container at `/var/opt/mssql` (SQL Server's data
+     directory inside the Linux container image) via `-v
+     tour-of-heroes-sql-data:/var/opt/mssql`.
+   - Re-running the script now reuses both the existing container (if
+     present) and the existing volume (if present), so no data is lost
+     across repeated runs.
+2. Updated `scripts/stop-sql-server.ps1`:
+   - Still stops/removes the container by default, but now **keeps the
+     volume** (and therefore the data) unless a new `-RemoveVolume`
+     switch is passed, in which case it also runs `docker volume rm` to
+     permanently delete the data.
+3. Verified end-to-end:
+   - `start-sql-server.ps1` → created the volume + container, ran
+     `dotnet ef database update` → migration applied, heroes seeded.
+   - `stop-sql-server.ps1` (no flag) → container removed, volume kept.
+   - `start-sql-server.ps1` again → container recreated, volume reused
+     (no "Creating volume" message this time); re-ran `dotnet ef
+     database update` → **"No migrations were applied. The database is
+     already up to date."**, confirming the seeded data survived the
+     container being removed and recreated.
+   - `stop-sql-server.ps1 -RemoveVolume` → container and volume both
+     removed; confirmed with `docker ps -a` and `docker volume ls` that
+     neither remained.
+4. Updated the top-level `README.md` to mention the volume and the new
+   `-RemoveVolume` flag on the stop script.
+
+**Plain-language explanation:**
+- A **Docker volume** is storage managed by Docker that lives outside
+  any single container's filesystem — so even if the container itself
+  is deleted, data written to a mounted volume remains on disk and can
+  be reattached to a new container later.
+- Without a volume (the previous behavior), all of SQL Server's data
+  lived only inside the container's own filesystem layer, so `docker rm`
+  permanently wiped it — meaning every restart of the demo required
+  re-running the EF Core migration from scratch.
+- The `-RemoveVolume` switch is opt-in specifically so the "normal" stop
+  workflow (e.g. shutting down for the day) doesn't accidentally destroy
+  data, while still offering an easy one-line way to fully reset
+  everything when a clean slate is wanted.
+
+**Result — updated files:**
+```
+scripts/start-sql-server.ps1   -> creates/mounts tour-of-heroes-sql-data volume
+scripts/stop-sql-server.ps1    -> keeps volume by default; -RemoveVolume to delete it
+README.md                      -> documents volume persistence + -RemoveVolume flag
+```
+
+**Status:** ✅ Done — awaiting review.

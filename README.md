@@ -14,11 +14,20 @@ for the full plan, `docs/backend.md` for the backend implementation log, and
 
 ## Running the backend
 
-1. Add your own SQL Server connection string under
-   `ConnectionStrings:HeroesDb` in
-   `backend/TourOfHeroes.Api/appsettings.json` (or
-   `appsettings.Development.json` / user-secrets).
-2. Apply the EF Core migration:
+1. Start a local SQL Server container (requires Docker):
+   ```
+   ./scripts/start-sql-server.ps1
+   ```
+   This runs `mcr.microsoft.com/mssql/server:2022-latest` in a container
+   named `tour-of-heroes-sql`, exposed on `localhost,1433` with a fixed
+   local-dev SA password, and stores its data in a named Docker volume
+   (`tour-of-heroes-sql-data`) so the database survives stopping and
+   recreating the container. It prints the connection string to use —
+   this already matches the default in `appsettings.json`, so no further
+   changes are needed for local development. Wait ~10-20 seconds after
+   starting for SQL Server to be ready to accept connections.
+2. Apply the EF Core migration (creates the database/table and seeds
+   sample heroes):
    ```
    cd backend/TourOfHeroes.Api
    dotnet ef database update
@@ -30,6 +39,17 @@ for the full plan, `docs/backend.md` for the backend implementation log, and
    By default it listens on `http://localhost:5047` (see
    `Properties/launchSettings.json`). Interactive API docs are available
    at `/scalar` once running.
+4. When you're done, stop and remove the SQL Server container:
+   ```
+   ./scripts/stop-sql-server.ps1
+   ```
+   By default this keeps the `tour-of-heroes-sql-data` volume, so your
+   data survives and the next `start-sql-server.ps1` reuses it (no need
+   to re-run `dotnet ef database update`). Pass `-RemoveVolume` to also
+   permanently delete the data:
+   ```
+   ./scripts/stop-sql-server.ps1 -RemoveVolume
+   ```
 
 ## Running the frontend
 
