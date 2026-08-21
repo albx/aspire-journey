@@ -1,5 +1,7 @@
 var builder = DistributedApplication.CreateBuilder(args);
 
+builder.AddDockerComposeEnvironment("docker-compose");
+
 var sql = builder.AddSqlServer("sql")
     .WithDataVolume();
 
