@@ -7,6 +7,8 @@ const string AngularDevClientPolicy = "AngularDevClient";
 
 var builder = WebApplication.CreateBuilder(args);
 
+builder.AddServiceDefaults();
+
 // Add services to the container.
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
@@ -30,6 +32,12 @@ if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
     app.MapScalarApiReference();
+
+    app.MapPost("/admin/migrate", async (HeroesDbContext db, CancellationToken ct) =>
+    {
+        await db.Database.MigrateAsync(ct);
+        return Results.Ok();
+    });
 }
 
 app.UseHttpsRedirection();
@@ -37,5 +45,6 @@ app.UseHttpsRedirection();
 app.UseCors(AngularDevClientPolicy);
 
 app.MapHeroesEndpoints();
+app.MapDefaultEndpoints();
 
 app.Run();
