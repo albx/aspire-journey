@@ -11,8 +11,7 @@ var builder = WebApplication.CreateBuilder(args);
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
 
-builder.Services.AddDbContext<HeroesDbContext>(options =>
-    options.UseSqlServer(builder.Configuration.GetConnectionString("HeroesDb")));
+builder.AddSqlServerDbContext<HeroesDbContext>("HeroesDb");
 
 builder.Services.AddCors(options =>
 {
