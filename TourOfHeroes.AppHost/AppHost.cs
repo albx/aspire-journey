@@ -18,18 +18,20 @@ var api = builder.AddProject<Projects.TourOfHeroes_Api>("api")
             Description = "Applies pending EF Core migrations to the HeroesDb database."
         });
 
+var frontend =builder.AddViteApp("frontend", "../frontend")
+    .WithRunScript("start")
+    .WithReference(api)
+    .WaitFor(api)
+    .WithExternalHttpEndpoints();
+
 var gateway = builder.AddYarp("gateway")
     .WithExternalHttpEndpoints()
     .WithConfiguration(yarp =>
     {
         yarp.AddRoute("/api/{**catch-all}", api);
+        yarp.AddRoute("/{**catch-all}", frontend);
     })
+    .PublishWithStaticFiles(frontend)
     .WaitFor(api);
-
-builder.AddViteApp("frontend", "../frontend")
-    .WithRunScript("start")
-    .WithReference(gateway)
-    .WaitFor(gateway)
-    .WithExternalHttpEndpoints();
 
 builder.Build().Run();
