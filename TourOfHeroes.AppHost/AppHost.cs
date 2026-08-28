@@ -29,9 +29,20 @@ var gateway = builder.AddYarp("gateway")
     .WithConfiguration(yarp =>
     {
         yarp.AddRoute("/api/{**catch-all}", api);
-        yarp.AddRoute("/{**catch-all}", frontend);
+
+        // Locally, proxy everything else to the Vite dev server; in production the
+        // gateway serves the built frontend assets directly (PublishWithStaticFiles).
+        if (builder.ExecutionContext.IsRunMode)
+        {
+            yarp.AddRoute(frontend);
+        }
     })
     .PublishWithStaticFiles(frontend)
     .WaitFor(api);
+
+if (builder.ExecutionContext.IsRunMode)
+{
+    gateway.WaitFor(frontend);
+}
 
 builder.Build().Run();
