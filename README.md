@@ -71,6 +71,46 @@ for the full plan, `docs/backend.md` for the backend implementation log, and
    running and reachable (CORS is already configured backend-side for
    this origin).
 
+## Docker Compose deployment demo
+
+The `TourOfHeroes.AppHost` project can deploy the whole app (SQL Server, API,
+Angular frontend, YARP gateway) to Docker Compose. A typical demo flow:
+
+1. Tear down any previous deployment:
+   ```
+   cd TourOfHeroes.AppHost
+   aspire destroy --yes
+   ```
+2. Generate the Docker Compose artifacts (no build, just shows the
+   generated `aspire-output/docker-compose.yaml`):
+   ```
+   aspire publish
+   ```
+3. Build the images and bring the stack up:
+   ```
+   aspire deploy
+   ```
+   Note the `api` URL printed at the end of the command (e.g.
+   `api: http://localhost:56538`) — SQL Server needs a schema before the
+   API can serve requests.
+4. In a separate terminal, apply EF Core migrations to the freshly
+   deployed database:
+   ```
+   cd ..
+   ./scripts/run-migrations.ps1
+   ```
+   This auto-discovers the running `api` container's published port and
+   POSTs to its `/admin/migrate` endpoint, retrying a few times in case
+   SQL Server is still starting up. Pass `-ApiUrl http://localhost:PORT`
+   to target a specific port instead of auto-discovery.
+
+   Kept as a separate script on purpose, so `aspire publish`/`aspire deploy`
+   stay the focus of the demo.
+
+See `docs/deployment-troubleshooting.md` for issues encountered (and fixed)
+while getting this deployment working, including why migrations aren't
+applied automatically today.
+
 ## Tests
 
 - Backend: `dotnet test` (from `backend/`, once test projects exist).
