@@ -54,7 +54,7 @@ services:
     entrypoint:
       - "dotnet"
     environment:
-      ASPNETCORE_ENVIRONMENT: "Development"
+      ASPNETCORE_ENVIRONMENT: "Production"
       API_HTTP: "http://api:${API_PORT}"
       REVERSEPROXY__ROUTES__route0__MATCH__PATH: "/api/{**catch-all}"
       REVERSEPROXY__ROUTES__route0__CLUSTERID: "cluster_api"

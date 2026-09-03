@@ -32,13 +32,14 @@ if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
     app.MapScalarApiReference();
-
-    app.MapPost("/admin/migrate", async (HeroesDbContext db, CancellationToken ct) =>
-    {
-        await db.Database.MigrateAsync(ct);
-        return Results.Ok();
-    });
 }
+
+// Registered in all environments so the AppHost's "Run Migrations" HttpCommand works after deployment too.
+app.MapPost("/admin/migrate", async (HeroesDbContext db, CancellationToken ct) =>
+{
+    await db.Database.MigrateAsync(ct);
+    return Results.Ok();
+});
 
 app.UseHttpsRedirection();
 
