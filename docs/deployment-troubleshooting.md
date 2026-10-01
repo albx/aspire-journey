@@ -84,22 +84,142 @@ frontend/backend source changes in the running Docker Compose deployment.
 If a stale `frontend/dist` exists from a previous manual build, delete it
 first so `aspire deploy` is forced to produce a fresh build.
 
-## Issue 4 — API returns 500 with "Login failed for user 'sa'" (open)
+## Issue 4 — API returns 500 with "Login failed for user 'sa'"
 
 **Symptom:** After Issues 1–3 were fixed, the gateway correctly serves the
 frontend and proxies `/api/**` to the `api` service, but API calls return
-`500` with a SQL login failure for `sa`.
+`500`. The `api` container logs show:
 
-**Likely cause:** The `sql` resource uses `WithDataVolume()`, so its data
-directory (`/var/opt/mssql`) persists across deploys in a Docker volume.
-SQL Server only applies `MSSQL_SA_PASSWORD` the *first* time it initializes
-that volume. Each `aspire deploy` run generates a new random `SQL_PASSWORD`
-parameter, so once the volume already has data, the container's new
-password no longer matches the password baked into the existing SQL Server
-instance — causing `Error Number: 18456` (login failed).
+```
+Microsoft.Data.SqlClient.SqlException (0x80131904): Login failed for user 'sa'.
+Error Number:18456,State:1,Class:14
+```
 
-**Status:** Not yet fixed. Options to resolve:
-- Remove/reset the stale SQL data volume so SQL Server re-initializes with
-  the current `SQL_PASSWORD` (destructive — deletes existing data).
-- Pin the SQL password parameter to a stable value across deploys instead
-  of letting Aspire regenerate it each time.
+and the `sql` container logs confirm the exact reason:
+
+```
+Error: 18456, Severity: 14, State: 8.
+Login failed for user 'sa'. Reason: Password did not match that for the login provided.
+```
+
+**Confirmed cause:** The `sql` resource uses `WithDataVolume()`
+(`AppHost.cs`), so its data directory (`/var/opt/mssql`) persists across
+deploys in a named Docker volume (e.g.
+`aspire-docker-compose-<id>_tourofheroes.apphost-<hash>-sql-data`). SQL
+Server only applies `MSSQL_SA_PASSWORD` the *first* time it initializes an
+empty data volume. By default, Aspire generates a new random `SQL_PASSWORD`
+parameter on every `aspire deploy`/`aspire publish` run and writes it to
+`aspire-output/.env.Production`. Once the volume already contains an
+initialized SQL Server instance, that new password no longer matches the
+one baked into `master` the first time around — so every subsequent login
+attempt fails with 18456, even though both containers are healthy and
+reachable on the network.
+
+Confirm this is the cause by checking whether the mounted volume predates
+the current `.env.Production` password:
+
+```powershell
+docker inspect <sql-container-name> --format "{{json .Mounts}}"
+docker volume ls | Select-String "sql-data"
+Get-Content TourOfHeroes.AppHost\aspire-output\.env.Production | Select-String SQL_PASSWORD
+```
+
+If the volume already existed before the current password was generated,
+this is the cause.
+
+**Fix (quick, destructive to existing SQL data):** Force SQL Server to
+re-initialize with the current password by removing its data volume, then
+recreate the container:
+
+```powershell
+docker compose -f TourOfHeroes.AppHost\aspire-output\docker-compose.yaml stop sql
+docker compose -f TourOfHeroes.AppHost\aspire-output\docker-compose.yaml rm -f sql
+docker volume rm <project>_tourofheroes.apphost-<hash>-sql-data
+aspire deploy   # or: docker compose ... up -d sql, then restart api/gateway
+```
+Re-run any pending EF Core migrations afterwards (the AppHost's
+`/admin/migrate` HTTP command) since the database starts empty.
+
+**Fix (durable):** Pin the SQL password to a stable value instead of
+letting Aspire regenerate it on every deploy, so the volume and the
+container env var never drift apart. In `AppHost.cs`:
+
+```csharp
+var sqlPassword = builder.AddParameter("sql-password", secret: true);
+
+var sql = builder.AddSqlServer("sql", sqlPassword)
+    .WithDataVolume();
+```
+
+Set the actual value once via `dotnet user-secrets set` (local) or the
+deployment target's secret store (e.g. `aspire deploy` parameter prompt /
+CI secret), so it stays the same across deploys. This avoids the
+mismatch entirely — the volume and the generated `.env.Production` will
+always agree. Clean up any leftover orphaned volumes from earlier,
+differently-named compose projects (`docker volume ls`, `docker volume rm`)
+to avoid confusion about which volume is actually in use.
+
+**Status:** Root cause confirmed; fix not yet applied in this repo.
+
+## Running EF Core migrations against the deployed Docker Compose stack
+
+The `api` resource in `AppHost.cs` registers a custom resource command for
+this purpose:
+
+```csharp
+var api = builder.AddProject<Projects.TourOfHeroes_Api>("api")
+    .WithReference(heroesDb)
+    .WaitFor(heroesDb)
+    .WithExternalHttpEndpoints()
+    .WithHttpCommand(
+        path: "/admin/migrate",
+        displayName: "Run Migrations",
+        commandOptions: new HttpCommandOptions
+        {
+            Method = HttpMethod.Post,
+            Description = "Applies pending EF Core migrations to the HeroesDb database."
+        });
+```
+
+This maps to an endpoint in `TourOfHeroes.Api` (`/admin/migrate`) that calls
+`DbContext.Database.MigrateAsync()` (or equivalent) against the connection
+string Aspire injects (`ConnectionStrings__HeroesDb`, pointing at the `sql`
+service). Prefer this over connecting to the `sql` container directly with
+`sqlcmd`, since it reuses the app's own EF Core migration assembly and
+connection configuration instead of requiring manual SQL.
+
+### Option A — Trigger via the Aspire dashboard / orchestrator
+
+If the Docker Compose stack is running under Aspire orchestration
+(`aspire start`), the command is available as "Run Migrations" against the
+`api` resource:
+
+- Aspire dashboard: open the `api` resource and click **Run Migrations**.
+- Aspire CLI / MCP: invoke the `execute_resource_command` tool (or
+  equivalent `aspire` CLI command) against the `api` resource's
+  `Run Migrations` command.
+
+### Option B — Call the endpoint directly over HTTP
+
+If the stack was started independently (e.g. a bare `docker compose up`
+with no Aspire orchestrator attached), call the endpoint directly. The
+`api` service publishes its container port to the host (see
+`docker-compose.yaml`: `ports: - "${API_PORT}"`), so it's reachable from the
+Docker host without going through the `gateway`:
+
+```powershell
+# API_PORT is resolved in TourOfHeroes.AppHost\aspire-output\.env.Production (default 8080)
+curl -X POST http://localhost:8080/admin/migrate
+```
+
+Note: `/admin/migrate` is **not** proxied by the `gateway`'s YARP route
+(only `/api/{**catch-all}` is), so it must be called against the `api`
+service's own published port, not through the gateway's public URL.
+
+### When to use this vs. the manual `sqlcmd` approach
+
+Use `/admin/migrate` for applying the application's EF Core migrations
+(the normal case). Only fall back to exec'ing into the `sql` container with
+`sqlcmd` (see other issues in this log) when you need to run ad hoc T-SQL
+that isn't part of an EF Core migration — e.g. inspecting data or manually
+fixing up a login/password mismatch like Issue 4 above.
