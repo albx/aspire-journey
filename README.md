@@ -7,15 +7,15 @@ for the full plan, `docs/backend.md` for the backend implementation log, and
 
 ## Branches
 
-The repo follows the journey step by step; each branch builds on the previous one.
+The repo follows the journey step by step; each feature branch builds on the previous one, and `main` contains the result of all of them.
 
 | Branch | Description |
 | --- | --- |
-| `main` | Base Tour of Heroes app (Angular frontend + ASP.NET Core API, SQL Server in Docker). Same commit as `starting-point`. |
-| `starting-point` | Starting point of the talk: the plain app, without Aspire. |
+| `main` (current) | The full application: Tour of Heroes with Aspire orchestration, the YARP gateway and the Docker Compose deployment (`docker-compose-deployment` merged in). |
+| `starting-point` | Starting point of the talk: the plain app (Angular frontend + ASP.NET Core API, SQL Server in Docker), without Aspire. |
 | `aspire-init` | Adds Aspire (AppHost) to orchestrate the API, frontend and SQL Server, with a custom command to initialize the database. |
 | `aspire-frontend-gateway` | Builds on `aspire-init`: adds a YARP gateway that acts as reverse proxy hosting both the API and the frontend static files. |
-| `docker-compose-deployment` (current) | Builds on `aspire-frontend-gateway`: adds the Docker Compose environment to deploy the app, plus a script to run migrations. |
+| `docker-compose-deployment` | Builds on `aspire-frontend-gateway`: adds the Docker Compose environment to deploy the app, plus a script to run migrations. |
 
 ## Repo layout
 
@@ -28,7 +28,7 @@ The repo follows the journey step by step; each branch builds on the previous on
 /docs                          -> Plan, implementation logs and deployment troubleshooting notes
 ```
 
-On this branch the whole app is orchestrated with Aspire and can also be
+The whole app is orchestrated with Aspire and can also be
 deployed to Docker Compose: the AppHost starts and wires SQL Server, the
 API, the frontend and a YARP gateway, and declares a Docker Compose
 environment as the deployment target (see
