@@ -5,6 +5,18 @@ Tour of Heroes sample app: an Angular frontend backed by an ASP.NET Core
 for the full plan, `docs/backend.md` for the backend implementation log, and
 `docs/frontend.md` for the frontend implementation log.
 
+## Branches
+
+The repo follows the journey step by step; each branch builds on the previous one.
+
+| Branch | Description |
+| --- | --- |
+| `main` | Base Tour of Heroes app (Angular frontend + ASP.NET Core API, SQL Server in Docker). Same commit as `starting-point`. |
+| `starting-point` | Starting point of the talk: the plain app, without Aspire. |
+| `aspire-init` | Adds Aspire (AppHost) to orchestrate the API, frontend and SQL Server, with a custom command to initialize the database. |
+| `aspire-frontend-gateway` | Builds on `aspire-init`: adds a YARP gateway that acts as reverse proxy hosting both the API and the frontend static files. |
+| `docker-compose-deployment` | Builds on `aspire-frontend-gateway`: adds the Docker Compose environment to deploy the app, plus a script to run migrations. |
+
 ## Repo layout
 
 ```
