@@ -14,20 +14,25 @@ The repo follows the journey step by step; each branch builds on the previous on
 | `main` | Base Tour of Heroes app (Angular frontend + ASP.NET Core API, SQL Server in Docker). Same commit as `starting-point`. |
 | `starting-point` | Starting point of the talk: the plain app, without Aspire. |
 | `aspire-init` | Adds Aspire (AppHost) to orchestrate the API, frontend and SQL Server, with a custom command to initialize the database. |
-| `aspire-frontend-gateway` (current) | Builds on `aspire-init`: adds a YARP gateway that acts as reverse proxy hosting both the API and the frontend static files. |
-| `docker-compose-deployment` | Builds on `aspire-frontend-gateway`: adds the Docker Compose environment to deploy the app, plus a script to run migrations. |
+| `aspire-frontend-gateway` | Builds on `aspire-init`: adds a YARP gateway that acts as reverse proxy hosting both the API and the frontend static files. |
+| `docker-compose-deployment` (current) | Builds on `aspire-frontend-gateway`: adds the Docker Compose environment to deploy the app, plus a script to run migrations. |
 
 ## Repo layout
 
 ```
 /frontend                      -> Angular app (standalone components, Angular Material)
 /backend                       -> ASP.NET Core Web API (Minimal APIs, EF Core, Scalar docs)
-/TourOfHeroes.AppHost          -> Aspire AppHost (SQL Server, API, frontend, YARP gateway)
+/TourOfHeroes.AppHost          -> Aspire AppHost (SQL Server, API, frontend, YARP gateway, Docker Compose environment)
 /TourOfHeroes.ServiceDefaults  -> Shared Aspire defaults (OpenTelemetry, health checks, resilience)
+/scripts                       -> Helper scripts (run-migrations.ps1 for the Docker Compose deployment)
+/docs                          -> Plan, implementation logs and deployment troubleshooting notes
 ```
 
-On this branch the whole app is orchestrated with Aspire: the AppHost
-starts and wires SQL Server, the API, the frontend and a YARP gateway.
+On this branch the whole app is orchestrated with Aspire and can also be
+deployed to Docker Compose: the AppHost starts and wires SQL Server, the
+API, the frontend and a YARP gateway, and declares a Docker Compose
+environment as the deployment target (see
+[Docker Compose deployment demo](#docker-compose-deployment-demo)).
 
 The gateway is the single entry point of the app. It forwards
 `/api/**` to the API and everything else to the frontend: the Vite dev
